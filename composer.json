@@ -1,0 +1,77 @@
+{
+    "name": "jkudish/conduit",
+    "description": "Laravel AI SDK gateway for CLI coding agents — Claude Code, Codex CLI, Amp, and Pi as first-class AI providers",
+    "keywords": [
+        "laravel",
+        "ai",
+        "cli",
+        "claude",
+        "codex",
+        "amp",
+        "agents",
+        "coding-agent"
+    ],
+    "homepage": "https://github.com/jkudish/conduit",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Joey Kudish",
+            "email": "joey@jkud.io",
+            "homepage": "https://jkudish.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/jkudish/conduit/issues",
+        "source": "https://github.com/jkudish/conduit"
+    },
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/jkudish"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/support": "^12.0",
+        "illuminate/contracts": "^12.0",
+        "laravel/ai": "^0.5.1",
+        "symfony/process": "^7.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^10.0",
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Conduit\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Conduit\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "phpstan": "vendor/bin/phpstan analyse",
+        "lint": "vendor/bin/pint",
+        "lint:check": "vendor/bin/pint --test"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Conduit\\ConduitServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "preferred-install": "dist"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

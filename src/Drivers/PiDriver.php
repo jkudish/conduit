@@ -75,12 +75,18 @@ class PiDriver extends AbstractCliDriver
         $args[] = $provider;
 
         // System prompt as inline text (Pi has no --system-prompt-file flag)
-        if (isset($options['system_prompt'])) {
+        // Merge append_system_prompt into the system prompt since Pi has no append flag.
+        if (isset($options['system_prompt']) || isset($options['append_system_prompt'])) {
+            $systemParts = [];
+            if (isset($options['system_prompt'])) {
+                $systemParts[] = (string) $options['system_prompt'];
+            }
+            if (isset($options['append_system_prompt'])) {
+                $systemParts[] = (string) $options['append_system_prompt'];
+            }
             $args[] = '--system-prompt';
-            $args[] = (string) $options['system_prompt'];
+            $args[] = implode("\n\n", $systemParts);
         }
-
-        // Pi has no native append-system-prompt flag — the gateway handles this.
 
         // Tools
         /** @var list<string> $tools */

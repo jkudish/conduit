@@ -47,7 +47,10 @@ class ClaudeDriver extends AbstractCliDriver
             if ($tempFile === false) {
                 throw new \RuntimeException('Failed to create temp file for system prompt');
             }
-            file_put_contents($tempFile, (string) $options['system_prompt']);
+            $written = file_put_contents($tempFile, (string) $options['system_prompt']);
+            if ($written === false) {
+                throw new \RuntimeException('Failed to write system prompt to temp file');
+            }
             // Pass the resolved path so buildCommand() can reference it without creating its own.
             $options['system_prompt_file'] = $tempFile;
         }
@@ -95,19 +98,10 @@ class ClaudeDriver extends AbstractCliDriver
         $args[] = '--max-turns';
         $args[] = (string) $maxTurns;
 
-        // Accept a pre-resolved temp file path (set by execute()) or fall back to
-        // creating one inline — direct callers of buildCommand() must clean up.
+        // Accept a pre-resolved temp file path (set by execute()).
         if (isset($options['system_prompt_file'])) {
             $args[] = '--system-prompt-file';
             $args[] = (string) $options['system_prompt_file'];
-        } elseif (isset($options['system_prompt'])) {
-            $tempFile = tempnam(sys_get_temp_dir(), 'conduit-prompt-');
-            if ($tempFile === false) {
-                throw new \RuntimeException('Failed to create temp file for system prompt');
-            }
-            file_put_contents($tempFile, (string) $options['system_prompt']);
-            $args[] = '--system-prompt-file';
-            $args[] = $tempFile;
         }
 
         if (isset($options['append_system_prompt'])) {

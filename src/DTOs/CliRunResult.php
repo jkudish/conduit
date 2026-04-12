@@ -109,8 +109,8 @@ final readonly class CliRunResult
             if ($type === 'turn.completed' && isset($event['usage'])) {
                 /** @var array{input_tokens?: int, output_tokens?: int, cached_input_tokens?: int} $usage */
                 $usage = $event['usage'];
-                $inputTokens = (int) ($usage['input_tokens'] ?? 0);
-                $outputTokens = (int) ($usage['output_tokens'] ?? 0);
+                $inputTokens += (int) ($usage['input_tokens'] ?? 0);
+                $outputTokens += (int) ($usage['output_tokens'] ?? 0);
             }
         }
 
@@ -304,7 +304,7 @@ final readonly class CliRunResult
             ]);
         }
 
-        $isError = $resultText === '' && $sessionId !== '';
+        $isError = $resultText === '' && $sessionId !== '' && $sessionId !== '0';
 
         return new self(
             sessionId: $sessionId,
@@ -453,7 +453,9 @@ final readonly class CliRunResult
 
                 continue; // Skip malformed lines (e.g., terminal escape sequences)
             }
-            $events[] = $event;
+            if (is_array($event)) {
+                $events[] = $event;
+            }
         }
 
         if ($skipped > 0) {

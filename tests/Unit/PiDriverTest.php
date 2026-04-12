@@ -43,6 +43,26 @@ it('includes system prompt as inline text', function (): void {
     expect($command[$index + 1])->toBe('You are a helpful assistant.');
 });
 
+it('merges append_system_prompt into system prompt', function (): void {
+    $driver = new PiDriver;
+    $command = $driver->buildCommand('Test', [
+        'system_prompt' => 'Base instructions.',
+        'append_system_prompt' => 'Extra context.',
+    ]);
+
+    $index = array_search('--system-prompt', $command, true);
+    expect($command[$index + 1])->toBe("Base instructions.\n\nExtra context.");
+});
+
+it('handles append_system_prompt without system_prompt', function (): void {
+    $driver = new PiDriver;
+    $command = $driver->buildCommand('Test', ['append_system_prompt' => 'Extra context.']);
+
+    expect($command)->toContain('--system-prompt');
+    $index = array_search('--system-prompt', $command, true);
+    expect($command[$index + 1])->toBe('Extra context.');
+});
+
 it('includes tools when provided via options', function (): void {
     $driver = new PiDriver;
     $command = $driver->buildCommand('Test', ['allowed_tools' => ['read', 'bash', 'edit']]);

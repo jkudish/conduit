@@ -33,18 +33,29 @@ it('overrides max turns from options', function (): void {
     expect($command[$index + 1])->toBe('25');
 });
 
-it('uses system-prompt-file for system prompts', function (): void {
+it('uses system-prompt-file when pre-resolved path is provided', function (): void {
+    $driver = new ClaudeDriver;
+    $tempFile = tempnam(sys_get_temp_dir(), 'conduit-test-');
+    file_put_contents($tempFile, 'You are a helpful assistant.');
+
+    try {
+        $command = $driver->buildCommand('Test', ['system_prompt_file' => $tempFile]);
+
+        $fileIndex = array_search('--system-prompt-file', $command, true);
+        expect($fileIndex)->not->toBeFalse();
+        expect($command[$fileIndex + 1])->toBe($tempFile);
+    } finally {
+        if (file_exists($tempFile)) {
+            unlink($tempFile);
+        }
+    }
+});
+
+it('ignores system_prompt without pre-resolved file in buildCommand', function (): void {
     $driver = new ClaudeDriver;
     $command = $driver->buildCommand('Test', ['system_prompt' => 'You are a helpful assistant.']);
 
-    $fileIndex = array_search('--system-prompt-file', $command, true);
-    expect($fileIndex)->not->toBeFalse();
-
-    $tempFile = $command[$fileIndex + 1];
-    expect(file_exists($tempFile))->toBeTrue();
-    expect(file_get_contents($tempFile))->toBe('You are a helpful assistant.');
-
-    unlink($tempFile);
+    expect($command)->not->toContain('--system-prompt-file');
 });
 
 it('includes append-system-prompt when provided', function (): void {

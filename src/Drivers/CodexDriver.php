@@ -36,51 +36,21 @@ class CodexDriver extends AbstractCliDriver
     {
         $this->ensureInstalled();
 
-        // Create the temp file here so buildCommand() stays side-effect-free.
-        // The finally block guarantees cleanup even if the process throws.
-        // Merge append_system_prompt into the instructions content (Codex has no native append flag).
-        $tempFile = null;
-        if (isset($options['system_prompt'])) {
-            $instructions = (string) $options['system_prompt'];
-            if (isset($options['append_system_prompt'])) {
-                $instructions .= "\n\n".(string) $options['append_system_prompt'];
-            }
-
-            $tempFile = tempnam(sys_get_temp_dir(), 'conduit-codex-prompt-');
-            if ($tempFile === false) {
-                throw new \RuntimeException('Failed to create temp file for Codex system prompt');
-            }
-            file_put_contents($tempFile, $instructions);
-            // Pass the resolved path so buildCommand() can reference it without creating its own.
-            $options['system_prompt_file'] = $tempFile;
-        }
-
         $args = $this->buildCommand($prompt, $options);
 
-        try {
-            $processResult = $this->runProcess($args, $options);
+        $processResult = $this->runProcess($args, $options);
 
-            if (! $processResult->success) {
-                throw CliCommandException::fromResult($processResult, $args);
-            }
-
-            $model = (string) ($options['model'] ?? $this->model);
-
-            return CliRunResult::fromCodexJson($processResult->output, ['model' => $model]);
-        } finally {
-            if ($tempFile !== null && file_exists($tempFile)) {
-                unlink($tempFile);
-            }
+        if (! $processResult->success) {
+            throw CliCommandException::fromResult($processResult, $args);
         }
+
+        $model = (string) ($options['model'] ?? $this->model);
+
+        return CliRunResult::fromCodexJson($processResult->output, ['model' => $model]);
     }
 
     /**
      * Build the command arguments for a Codex CLI invocation.
-     *
-     * This method is side-effect-free. If a system prompt is provided, pass
-     * the resolved temp file path via `$options['system_prompt_file']` (as
-     * execute() does) rather than `$options['system_prompt']`, so no file
-     * is created here.
      *
      * @param  array<string, mixed>  $options
      * @return list<string>
@@ -96,7 +66,8 @@ class CodexDriver extends AbstractCliDriver
             $args[] = (string) $options['session_id'];
         }
 
-        $args[] = $prompt;
+        // Codex has no native system-prompt flag — prepend to the prompt text.
+        $args[] = $this->prependSystemPrompt($prompt, $options);
         $args[] = '--json';
         $args[] = '--full-auto';
 
@@ -104,19 +75,37 @@ class CodexDriver extends AbstractCliDriver
         $args[] = '-m';
         $args[] = $model;
 
-        // Only accept a pre-resolved temp file path (set by execute()).
-        // execute() already merges append_system_prompt into the instructions before creating the file.
-        if (isset($options['system_prompt_file'])) {
-            $args[] = '--instructions-file';
-            $args[] = (string) $options['system_prompt_file'];
-        }
-
         if (isset($options['working_directory'])) {
             $args[] = '-C';
             $args[] = (string) $options['working_directory'];
         }
 
         return $args;
+    }
+
+    /**
+     * Prepend system prompt and append prompt to the user prompt.
+     * Codex has no native system-prompt flag, so we inline everything.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    protected function prependSystemPrompt(string $prompt, array $options): string
+    {
+        $parts = [];
+
+        if (isset($options['system_prompt'])) {
+            $parts[] = (string) $options['system_prompt'];
+        }
+
+        if (isset($options['append_system_prompt'])) {
+            $parts[] = (string) $options['append_system_prompt'];
+        }
+
+        if ($parts !== []) {
+            return implode("\n\n", $parts)."\n\n".$prompt;
+        }
+
+        return $prompt;
     }
 
     /**

@@ -47,11 +47,13 @@ echo $meta->durationMs;   // execution time
 | Driver | Provider ID | Binary | Features |
 |--------|------------|--------|----------|
 | **Claude Code** | `claude-cli` | `claude` | Session resume, tool allowlists, MCP config, system prompt file, cost tracking |
-| **Codex CLI** | `codex-cli` | `codex` | Session resume, instructions file, full-auto mode |
+| **Codex CLI** | `codex-cli` | `codex` | Session resume, full-auto mode |
 | **Amp** | `amp-cli` | `amp` | Streaming JSON output, mode selection (smart/fast), MCP config |
 | **Pi** | `pi-cli` | `pi` | Multi-provider (Anthropic/OpenAI/Gemini), ephemeral mode, thinking levels |
 
 Each driver is registered as an AI SDK provider via `AiManager::extend()` and implements the `Gateway` interface.
+
+> **Security note:** Codex CLI runs in `--full-auto` mode and Amp defaults to `--dangerously-allow-all`. These agents can read, write, and execute files on your system. Never route untrusted user input directly to these providers without sandboxing. Always set a `workingDirectory` to scope file access.
 
 ## Configuration
 
@@ -134,7 +136,7 @@ ConduitContext::set(
 
 ### Context Builder
 
-`ConduitContext` is a fluent, request-scoped context builder that uses Laravel's `Context` facade under the hood:
+`ConduitContext` is a static, request-scoped context builder that uses Laravel's `Context` facade under the hood:
 
 ```php
 ConduitContext::set(

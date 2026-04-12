@@ -24,32 +24,29 @@ it('overrides model from options', function (): void {
     expect($command[$modelIndex + 1])->toBe('o3');
 });
 
-it('uses instructions-file when system_prompt_file is pre-resolved', function (): void {
-    // buildCommand() is side-effect-free — callers must resolve the temp file first (as execute() does).
+it('prepends system prompt to user prompt', function (): void {
     $driver = new CodexDriver;
-    $tempFile = tempnam(sys_get_temp_dir(), 'conduit-test-');
-    file_put_contents($tempFile, 'You are a helpful assistant.');
+    $command = $driver->buildCommand('Write tests', ['system_prompt' => 'You are a test engineer.']);
 
-    try {
-        $command = $driver->buildCommand('Test', ['system_prompt_file' => $tempFile]);
-
-        $fileIndex = array_search('--instructions-file', $command, true);
-        expect($fileIndex)->not->toBeFalse();
-        expect($command[$fileIndex + 1])->toBe($tempFile);
-    } finally {
-        if (file_exists($tempFile)) {
-            unlink($tempFile);
-        }
-    }
+    // codex exec <prompt> --json ...
+    expect($command[2])->toBe("You are a test engineer.\n\nWrite tests");
 });
 
-it('does not create temp files when only system_prompt is passed to buildCommand', function (): void {
-    // buildCommand() is side-effect-free: it ignores system_prompt without a pre-resolved file.
-    // execute() is responsible for creating the temp file before calling buildCommand().
+it('merges append_system_prompt with system prompt', function (): void {
     $driver = new CodexDriver;
-    $command = $driver->buildCommand('Test', ['system_prompt' => 'You are a helpful assistant.']);
+    $command = $driver->buildCommand('Do work', [
+        'system_prompt' => 'Base instructions.',
+        'append_system_prompt' => 'Extra context.',
+    ]);
 
-    expect($command)->not->toContain('--instructions-file');
+    expect($command[2])->toBe("Base instructions.\n\nExtra context.\n\nDo work");
+});
+
+it('handles append_system_prompt without system_prompt', function (): void {
+    $driver = new CodexDriver;
+    $command = $driver->buildCommand('Do work', ['append_system_prompt' => 'Extra context.']);
+
+    expect($command[2])->toBe("Extra context.\n\nDo work");
 });
 
 it('includes working directory when provided', function (): void {

@@ -53,6 +53,10 @@ class ConduitGateway implements Gateway
         ?TextGenerationOptions $options = null,
         ?int $timeout = null,
     ): TextResponse {
+        if ($tools !== [] || $schema !== null) {
+            Log::warning('ConduitGateway: AI SDK tools and structured output schemas are not supported by CLI providers — these parameters are ignored.');
+        }
+
         // Build the user prompt from the last message
         $prompt = $this->extractPromptFromMessages($messages);
 
@@ -199,7 +203,7 @@ class ConduitGateway implements Gateway
         // Walk backwards to find the last user message
         foreach (array_reverse($messages) as $message) {
             if ($message instanceof UserMessage) {
-                return $message->content;
+                return (string) $message->content;
             }
         }
 

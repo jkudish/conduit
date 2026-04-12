@@ -10,7 +10,7 @@ class CliParseException extends ConduitException
     {
         return new self(
             message: 'Failed to parse CLI output as JSON'.($jsonError ? ': '.$jsonError : ''),
-            output: $output,
+            output: self::truncate($output),
         );
     }
 
@@ -18,7 +18,14 @@ class CliParseException extends ConduitException
     {
         return new self(
             message: 'Unexpected CLI output format: '.$message,
-            output: $output,
+            output: $output !== null ? self::truncate($output) : null,
         );
+    }
+
+    protected static function truncate(string $output): string
+    {
+        return mb_strlen($output) > 500
+            ? mb_substr($output, 0, 500).'…[truncated]'
+            : $output;
     }
 }

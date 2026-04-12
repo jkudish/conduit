@@ -33,7 +33,9 @@ class CliCommandException extends ConduitException
             message: "CLI command '{$binary}' failed (exit {$result->exitCode}): {$errorPreview}",
             command: $redactedArgs,
             output: $truncatedOutput,
-            errorOutput: trim($result->error),
+            errorOutput: mb_strlen($result->error) > 500
+                ? mb_substr($result->error, 0, 500).'…[truncated]'
+                : trim($result->error),
             code: $result->exitCode,
         );
     }

@@ -157,7 +157,7 @@ Every response includes structured metadata:
 ```php
 $meta = $response->meta;
 
-$meta->costUsd;           // 0.0042
+$meta->costUsd;           // 0.0042 (0.00 for Codex — see note below)
 $meta->promptTokens;      // 15200
 $meta->completionTokens;  // 3800
 $meta->durationMs;        // 12400
@@ -165,6 +165,8 @@ $meta->numTurns;          // 3
 $meta->sessionId;         // 'abc-123-def'
 $meta->isError;           // false
 ```
+
+> **Cost tracking note:** Codex CLI does not report monetary cost in its output. `costUsd` returns `0.00` for Codex requests. Token counts (`promptTokens`, `completionTokens`) are fully supported — you can compute cost externally by multiplying token counts by the model's per-token pricing.
 
 ### Working Directory
 

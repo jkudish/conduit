@@ -186,6 +186,39 @@ it('throws on pi output with no session or agent_end events', function (): void 
     CliRunResult::fromPiJson($json);
 })->throws(CliParseException::class, 'No session or agent_end events found in Pi output');
 
+it('parses pi ephemeral output without agent_end (turn_end fallback)', function (): void {
+    $json = implode("\n", [
+        '{"type":"session","version":3,"id":"pi-ephemeral-1","timestamp":"2026-04-12T23:44:49Z","cwd":"/tmp"}',
+        '{"type":"agent_start"}',
+        '{"type":"turn_start"}',
+        '{"type":"message_start","message":{"role":"user","content":[{"type":"text","text":"Say PONG"}]}}',
+        '{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"Say PONG"}]}}',
+        '{"type":"message_start","message":{"role":"assistant","content":[]}}',
+        '{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"thinking..."},{"type":"text","text":"PONG"}]}}',
+        '{"type":"turn_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"thinking..."},{"type":"text","text":"PONG"}]},"toolResults":[]}',
+    ]);
+
+    $result = CliRunResult::fromPiJson($json, ['model' => 'claude-sonnet-4-5']);
+
+    expect($result->sessionId)->toBe('pi-ephemeral-1')
+        ->and($result->result)->toBe('PONG')
+        ->and($result->numTurns)->toBe(1)
+        ->and($result->isError)->toBeFalse();
+});
+
+it('parses pi ephemeral output with message_end fallback only', function (): void {
+    $json = implode("\n", [
+        '{"type":"session","version":3,"id":"pi-ephemeral-2","timestamp":"2026-04-12T23:44:49Z","cwd":"/tmp"}',
+        '{"type":"agent_start"}',
+        '{"type":"turn_start"}',
+        '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Hello from Pi!"}]}}',
+    ]);
+
+    $result = CliRunResult::fromPiJson($json);
+
+    expect($result->result)->toBe('Hello from Pi!');
+});
+
 it('skips malformed jsonl lines gracefully', function (): void {
     $json = implode("\n", [
         '{"type":"thread.started","thread_id":"t-1"}',

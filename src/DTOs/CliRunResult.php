@@ -272,16 +272,21 @@ final readonly class CliRunResult
                 $messages = array_reverse((array) $event['messages']);
                 foreach ($messages as $message) {
                     if (($message['role'] ?? '') === 'assistant' && isset($message['content'])) {
-                        // Content is an array of blocks — extract text blocks
-                        $textParts = [];
-                        foreach ((array) $message['content'] as $block) {
-                            if (($block['type'] ?? '') === 'text') {
-                                $textParts[] = (string) ($block['text'] ?? '');
-                            }
-                        }
-                        $resultText = implode("\n", $textParts);
+                        $resultText = self::extractTextFromContent($message['content']);
 
                         break;
+                    }
+                }
+            }
+
+            // Fallback: ephemeral mode (--no-session) may not emit agent_end.
+            // Extract from turn_end and message_end events that carry assistant content.
+            if ($resultText === '' && ($type === 'turn_end' || $type === 'message_end')) {
+                $message = $event['message'] ?? null;
+                if (is_array($message) && ($message['role'] ?? '') === 'assistant' && isset($message['content'])) {
+                    $extracted = self::extractTextFromContent($message['content']);
+                    if ($extracted !== '') {
+                        $resultText = $extracted;
                     }
                 }
             }
@@ -385,6 +390,27 @@ final readonly class CliRunResult
         }
 
         return null;
+    }
+
+    /**
+     * Extract text content from a message content blocks array.
+     *
+     * @param  mixed  $content  Array of content blocks
+     */
+    private static function extractTextFromContent(mixed $content): string
+    {
+        if (! is_array($content)) {
+            return '';
+        }
+
+        $textParts = [];
+        foreach ($content as $block) {
+            if (is_array($block) && ($block['type'] ?? '') === 'text') {
+                $textParts[] = (string) ($block['text'] ?? '');
+            }
+        }
+
+        return implode("\n", $textParts);
     }
 
     /**

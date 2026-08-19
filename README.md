@@ -249,6 +249,10 @@ try {
 - Laravel AI SDK (`laravel/ai`) v0.5.1+
 - At least one supported CLI agent installed locally
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the planned 2.0 work: Laravel 13 + `laravel/ai` 0.10, PHPStan 10, and Cursor / Grok drivers.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Run `composer test`, `composer phpstan`, and `composer lint` before submitting.

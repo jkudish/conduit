@@ -1,14 +1,15 @@
 # Conduit Modernization Roadmap
 
-Research snapshot: **19 August 2026**. This is a sequenced plan, not a changelog. Dates below are calendar context for support windows, not effort estimates.
+Research snapshot: **20 August 2026**. Execution tickets: [ISSUES.md](ISSUES.md). Do not implement this as one PR.
 
-Conduit is a Laravel AI SDK gateway that shells out to coding-agent CLIs. The package is still on Laravel 12 + `laravel/ai` 0.5.1, talks to four CLIs (Claude Code, Codex, Amp, Pi), and already runs PHPStan 8 via Larastan. The modernization work is three stacked problems:
+Conduit is a Laravel AI SDK gateway that shells out to coding-agent CLIs. The package is still on Laravel 12 + `laravel/ai` 0.5.1, talks to four CLIs (Claude Code, Codex, Amp, Pi), and already runs PHPStan 8 via Larastan.
 
-1. The Laravel AI SDK contract Conduit implements has been rewritten.
-2. Static typing is present but still bag-of-mixeds at the driver boundary.
-3. Two of the six requested agents have no driver, and the four that exist lag current CLI surfaces.
+## Decisions (20 Aug 2026)
 
-Treat this as a **2.0**. Dual-supporting Laravel 12 while rewriting the gateway is possible; keeping `laravel/ai` 0.5 compatibility after the gateway rewrite is not.
+- **Six issues, six PRs.** Foundation → DriverOptions → PHPStan 9/10 → CLI parity → Cursor/Grok → streaming. See [ISSUES.md](ISSUES.md).
+- **Pest 5** is in scope for 2.0. That forces **PHP `^8.4`** and **Laravel 13** (`pest-plugin-laravel` 5.0.1 requires `laravel/framework: ^13.23`). Drop Laravel 12 / PHP 8.3.
+- **No GitHub Actions.** Actions is out of credits; ignore red CI. Gate on local `composer test`, `composer phpstan`, `composer lint:check`. JSON fixtures still belong in `tests/Fixtures/` for local Pest.
+- **PHPStan stays at 8** through the `laravel/ai` rewrite. Then 9 after DriverOptions. Then 10. Do not start at 10. Analysis below.
 
 ---
 
@@ -16,18 +17,18 @@ Treat this as a **2.0**. Dual-supporting Laravel 12 while rewriting the gateway 
 
 | Layer | Today | Target |
 | --- | --- | --- |
-| PHP | `^8.3` | Keep `^8.3`; CI on 8.3 / 8.4 / 8.5 |
-| Laravel | `illuminate/* ^12.0` | `^12.0 \|\| ^13.0` then drop 12 after a 2.x cycle |
-| AI SDK | `laravel/ai ^0.5.1` | `^0.10.3` (current latest) |
-| Testbench | `^10.0` (Laravel 12) | `^10 \|\| ^11` (Laravel 12 / 13) |
-| Pest | `^4.0` | Stay on Pest 4 while PHP 8.3 is supported; Pest 5 wants PHP `^8.4` |
-| PHPStan | `^2.0`, **level 8**, `src/` only | PHPStan `^2.2`, Larastan `^3.10`, **level 9 then 10**, include `tests/` |
+| PHP | `^8.3` | `^8.4` (Pest 5) |
+| Laravel | `illuminate/* ^12.0` | `^13.0` |
+| AI SDK | `laravel/ai ^0.5.1` | `^0.10.3` |
+| Testbench | `^10.0` | `^11.0` |
+| Pest | `^4.0` | `^5.0` + `pest-plugin-laravel ^5.0` |
+| PHPStan | `^2.0`, **level 8**, `src/` only | PHPStan `^2.2`, Larastan `^3.10`, **level 8 → 9 → 10** |
 | Drivers | Claude, Codex, Amp, Pi | + Cursor (`agent`), + Grok (`grok`) |
-| Streaming | Throws; README says “v2” | `stream-json` / `streaming-json` where the CLI can emit it |
-| Structured output | SDK `$schema` ignored | Forward `--json-schema` / `--output-schema` where the CLI supports it |
-| CI | None | GitHub Actions: Pest + Pint + PHPStan on a PHP × Laravel matrix |
+| Streaming | Throws; README says “v2” | `stream-json` / Grok `streaming-json` |
+| Structured output | SDK `$schema` ignored | Forward `--json-schema` / `--output-schema` |
+| CI | None (and stay that way) | Local Pest + Pint + PHPStan only |
 
-Laravel 13 shipped 17 March 2026 (PHP 8.3–8.5). Laravel 12 bugfix ended 13 August 2026; security support runs through 24 February 2027. Orchestra Testbench 11 tracks Laravel 13. Larastan 3.10 already allows Laravel 13.
+`laravel/ai` 0.10 still allows Laravel 12 / PHP 8.3. **Pest 5 is what raises the floor.** Laravel 13 shipped 17 March 2026. Orchestra Testbench 11 and Larastan 3.10 already support it.
 
 ---
 
@@ -48,7 +49,7 @@ Secondary breaking changes worth bundling into the same major:
 - Default model IDs (`claude-sonnet-4-5`, `gpt-5.3-codex`) should become aliases or documented current IDs, not frozen strings in constructors.
 - `array<string, mixed> $options` should die in the public driver contract.
 
-Keep Laravel 12 in `composer.json` for 2.0 if the AI SDK constraint is the only real 13-only pressure. Drop Laravel 12 in 2.1 or 3.0 once security support is close.
+Drop Laravel 12 in 2.0 along with PHP 8.3. Pest 5 is not optional.
 
 ---
 
@@ -63,15 +64,14 @@ Keep Laravel 12 in `composer.json` for 2.0 if the AI SDK constraint is the only 
 
 ---
 
-## Phase 0 — Make the repo shippable
+## Phase 0 — Local quality only (folded into issue 1)
 
-Do this before any Laravel or driver work. It is the only phase that does not change public API.
+Do **not** add GitHub Actions. Fold these into the foundation PR:
 
-- Add GitHub Actions: PHP 8.3/8.4/8.5 × Laravel 12 (Testbench 10), then expand to Laravel 13 (Testbench 11) in Phase 1.
-- Run `composer test`, `composer phpstan`, `composer lint:check` on every PR.
-- Add `pest.php` / TestCase if Testbench bootstrapping is needed once the gateway rewrite hits the container.
-- Record CLI JSON fixtures under `tests/Fixtures/{claude,codex,amp,pi,cursor,grok}/` with the CLI version in the filename.
-- Document minimum CLI versions in README (detect via `--version` later; do not block Phase 0 on detection).
+- `composer test`, `composer phpstan`, `composer lint:check` must pass locally.
+- Add `Pest.php` / Testbench `TestCase` if the 0.10 rewrite needs a booted app for `Context` / `Log`.
+- Move parser JSON into `tests/Fixtures/{claude,codex,amp,pi}/`.
+- Document minimum CLI versions in README when a parser is touched, not as its own project.
 
 ---
 
@@ -82,24 +82,24 @@ This is the load-bearing phase. Everything else rebases onto it.
 ### Composer
 
 ```json
-"php": "^8.3",
-"illuminate/support": "^12.0|^13.0",
-"illuminate/contracts": "^12.0|^13.0",
+"php": "^8.4",
+"illuminate/support": "^13.0",
+"illuminate/contracts": "^13.0",
 "laravel/ai": "^0.10.3",
-"symfony/process": "^7.0|^8.0"
+"symfony/process": "^7.4|^8.0"
 ```
 
 Dev:
 
 ```json
 "larastan/larastan": "^3.10",
-"orchestra/testbench": "^10.0|^11.0",
-"pestphp/pest": "^4.0",
-"pestphp/pest-plugin-laravel": "^4.1",
+"orchestra/testbench": "^11.0",
+"pestphp/pest": "^5.0",
+"pestphp/pest-plugin-laravel": "^5.0",
 "phpstan/phpstan": "^2.2"
 ```
 
-Stay on Pest 4 while PHP 8.3 remains supported. `pest-plugin-laravel` 4.1 already understands Laravel 13. Pest 5 (`^5.0.1`) requires PHP `^8.4` and Laravel `^13.23` — that is a later, optional bump.
+`pest-plugin-laravel` 5.0.1 requires `laravel/framework: ^13.23`. Testbench 11 already pulls that. Enable `allow-plugins.pestphp/pest-plugin`.
 
 ### Gateway rewrite
 
@@ -125,79 +125,51 @@ Publish a `minimum_version` per driver. Add `permission_mode` / `sandbox` / `alw
 
 ---
 
-## Phase 2 — Static types (Larastan + PHPStan)
+## PHPStan: 8 vs 9 vs 10
 
-The package already has the right tools at the wrong altitude. Level 8 plus `array<string, mixed>` is how `CliDriver::execute()` and `ConduitContext::toDriverOptions()` leak.
+**Recommendation: stay on 8 for issue 1, 9 after DriverOptions, 10 as its own follow-up. Do not start at 10.**
 
-### Tooling
+PHPStan 2.x levels that matter here (cumulative):
 
-```neon
-includes:
-    - vendor/larastan/larastan/extension.neon
-    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
-    - vendor/phpstan/phpstan-strict-rules/rules.neon
+| Level | What it adds | Conduit today |
+| --- | --- | --- |
+| 6 | Missing typehints | Already clean — constructors and methods are typed |
+| 7 | Union-type holes | Fine |
+| **8** | Calling methods / accessing properties on **nullable** | **Current gate.** `?string` + casts. Keep this through the SDK rewrite. |
+| **9** | Strict **explicit `mixed`** — you may only pass `mixed` to another `mixed` | The option bags and JSON parsers |
+| **10** | Same rules for **implicit `mixed`** (missing types, untyped foreach values, untyped `config()` / `Context::get()`) | Parser/array-shape work |
 
-parameters:
-    paths:
-        - src
-        - tests
-    level: 9          # then 10
-    phpVersion: 80300 # bump the analysed version when CI adds 8.4 as minimum
-    treatPhpDocTypesAsCertain: true
-```
+Level 8 is the right *current* setting. The `laravel/ai` 0.10 rewrite will move `Gateway` → `StepTextGateway`, `TextResponse` → `StepResponse`, and `Meta`’s constructor. That is real type work. Stacking level 9/10 on the same PR mixes SDK-break noise with mixed-strictness noise.
 
-Sequence:
+### What level 9 actually hits in this repo
 
-1. Lock PHPStan `^2.2` and Larastan `^3.10` (already Laravel 13-capable).
-2. Add `phpstan/phpstan-deprecation-rules` so the AI SDK upgrade cannot rot.
-3. Raise to **level 9** (explicit `mixed`). Baseline only if a vendor stub is the blocker; do not baseline Conduit’s own option bags.
-4. Raise to **level 10** (implicit `mixed`). This is the actual “static types” milestone.
-5. Turn on `phpstan-strict-rules` after 10 is clean.
-6. Optional: `bleedingEdge.neon` once 10 is boring.
+Level 9 does not mean “add more `@var`”. It means: once a value is `mixed`, you cannot offset it, call methods on it, or pass it to `string`/`int`/`array` without narrowing.
 
-### Kill the mixed option bag
+Hot spots:
 
-Replace `array<string, mixed> $options` with a readonly DTO (name bikeshed: `DriverOptions`).
+1. **`array<string, mixed> $options`** on every `execute` / `buildCommand`. `$options['model']` is `mixed`. Drivers already `(string)`-cast, which is usually enough for 9, but the public contract is still a junk drawer. **DriverOptions removes this entire class of errors.** Doing 9 before the DTO is wasted motion.
+2. **`CliRunResult` JSON parsers.** `json_decode()` is `mixed`. `findResultEvent(mixed $decoded)` already narrows with `is_array()`. The pain is `foreach ($content as $block)` and `$event['item']` — values of `array<string, mixed>` are `mixed`, so `$item['type']` is a level-9 error unless you narrow or `@var` an array shape. There are already several `@var array<string, mixed>` annotations; 9 will tell you which ones are missing.
+3. **`extractPromptFromMessages(array $messages)`** typed as `array<int, mixed>`. The `is_object($m) ? $m::class` callback is already narrowed. Fine at 9 if `UserMessage` is tested with `instanceof`.
 
-```php
-final readonly class DriverOptions
-{
-    /**
-     * @param  list<string>  $allowedTools
-     * @param  list<string>  $disallowedTools
-     */
-    public function __construct(
-        public ?string $model = null,
-        public ?string $sessionId = null,
-        public array $allowedTools = [],
-        public array $disallowedTools = [],
-        public ?string $systemPrompt = null,
-        public ?string $appendSystemPrompt = null,
-        public ?int $maxTurns = null,
-        public ?string $mcpConfig = null,
-        public ?string $workingDirectory = null,
-        public ?int $timeout = null,
-        public ?string $permissionMode = null,
-        public ?string $jsonSchema = null,
-        public ?string $thinking = null,
-        public ?string $provider = null,   // Pi
-        public ?string $mode = null,       // Amp / Cursor
-        public bool $bare = false,
-    ) {}
-}
-```
+Level 9 after DriverOptions should be a short PR: leftover JSON offset access in `CliRunResult`, maybe `config()` in the service provider. **No baseline.** If 9 needs a baseline, the DTO did not actually land.
 
-`ConduitContext` becomes a builder for `DriverOptions`, not a parallel key-value store. `CliDriver::execute(string $prompt, DriverOptions $options): CliRunResult`. `buildCommand()` takes the same DTO.
+### What level 10 adds
 
-Add a `DriverCapability` enum/set (`Resume`, `Mcp`, `AllowedTools`, `DisallowedTools`, `SystemPromptFlag`, `JsonSchema`, `StreamingJson`, `Sandbox`) so the gateway can log or throw when the SDK asks for something the binary cannot do — instead of silently ignoring `$tools` and `$schema` as it does today.
+Implicit mixed is “you forgot a type”, not “you wrote `mixed`”. After 9:
 
-PHP 8.4 property hooks are available on CI, but do not require 8.4 in `composer.json` until Pest 5 / a later major. Readonly DTOs + enums on 8.3 are enough.
+- `config('conduit.drivers.claude', [])` and `Context::get()` return mixed unless Larastan/the call is annotated. The service provider already `@var array<string, mixed>` on config blobs — 10 wants that to be a real config DTO or a shaped array.
+- `foreach ($content as $block)` when `$content` is `array` with no value type.
+- Analysing `tests/` at 10 is noisy (Mockery, Pest closures). Keep phpstan on `src/` until 10 is boring.
 
-### Types that are already good
+Level 10 is the right *end state* for a small package. It is the wrong *first* move. `phpstan-strict-rules` and `bleedingEdge.neon` wait until 10 is green.
 
-Keep `declare(strict_types=1)`, constructor property promotion, `list<string>` PHPDoc, and the readonly `CliRunResult` / `CliProcessResult`. The debt is at the seams: options, JSON parsers (`array<string, mixed>` events), and `ConduitGateway::extractPromptFromMessages(array $messages)`.
+### What is already good
 
-Tighten parsers with PHPStan array shapes or small event DTOs per CLI (`ClaudeResultEvent`, `CodexTurnCompleted`, …). Do not one-type every JSONL event on day one; shape the fields you persist onto `CliRunResult`.
+`declare(strict_types=1)`, promoted properties, `list<string>` PHPDoc, readonly `CliRunResult` / `CliProcessResult`. Do not churn those.
+
+### DriverOptions (issue 2, still level 8)
+
+Replace the option bag with a readonly DTO. `ConduitContext` builds it. `CliDriver::execute(string $prompt, DriverOptions $options)`. Optional `DriverCapability` set so `$tools` / `$schema` are not silently ignored. Shape JSON events later (issue 3), not in the DTO PR.
 
 ---
 
@@ -347,16 +319,16 @@ ACP (`agent acp`, `grok agent stdio`, Pi `--mode rpc`) is a follow-on project: o
 
 ## Suggested sequence
 
-Ship as stacked PRs on a `2.x` branch, not one megadiff.
+One GitHub issue per PR. Copy from [ISSUES.md](ISSUES.md).
 
-1. **0.x hygiene** — CI, fixtures, CONTRIBUTING matrix note.
-2. **2.0.0-alpha** — `laravel/ai` 0.10 gateway rewrite + Laravel 12/13 constraints. Existing four drivers still work, tests green on Testbench 10 and 11.
-3. **Types** — `DriverOptions`, PHPStan 9 then 10, tests in the analysed paths.
-4. **Claude / Codex / Amp / Pi flag parity** — especially Amp resume and safer auto-approve defaults.
-5. **CursorDriver + GrokDriver** — config, provider IDs, parsers, README table.
-6. **2.0.0** — streaming + schema forwarding. Tag when PHPStan 10 is clean and the six-driver table in README is true.
+1. `laravel/ai` 0.10 + Laravel 13 + Pest 5 (PHP 8.4). PHPStan stays 8. Local tests only. Parser fixtures for the four existing CLIs.
+2. `DriverOptions` DTO. Still PHPStan 8.
+3. PHPStan 9, then 10. No baseline.
+4. Claude / Codex / Amp / Pi flag parity (Amp `threads continue`, opt-in auto-approve).
+5. Cursor (`agent`) + Grok (`grok`) drivers.
+6. Streaming JSONL + schema forwarding. ACP stays parked.
 
-Optional later: Pest 5 + PHP `^8.4`, drop Laravel 12, ACP transport, driver auto-discovery of binaries with version constraints.
+Optional later: ACP transport, binary version probes, `phpstan-strict-rules`.
 
 ---
 
@@ -367,7 +339,7 @@ Optional later: Pest 5 + PHP `^8.4`, drop Laravel 12, ACP transport, driver auto
 - **Headless permission prompts hang PHP.** Any driver without `--force` / `--always-approve` / `--permission-mode bypassPermissions` / `--full-auto` can block `Process::run()` until timeout. Timeouts already exist; 2.0 should fail fast with a dedicated “permissions would block headless” config error when auto-approve is off and the CLI has no non-interactive fallback.
 - **Binary name collisions.** `pi` and `agent` are generic. Absolute `binary` paths in config are already supported — document that as the production setting.
 - **Secrets in argv.** Prompts and system prompts appear in process argument lists. Claude’s temp-file system prompt is the right pattern; prefer stdin / prompt files where a CLI allows it (Amp `--stream-json-input`, Claude `--input-format stream-json`).
-- **No CI today** means the 0.10 rewrite will be the first time Testbench actually boots `ConduitServiceProvider` against a real `AiManager`. Budget time for container / facade issues that unit tests on `new ConduitGateway($fake)` never see.
+- **No CI (intentional).** The 0.10 rewrite will be the first time Testbench actually boots `ConduitServiceProvider` against a real `AiManager`. Budget time for container / facade issues that unit tests on `new ConduitGateway($fake)` never see. Run Pest locally; ignore red GitHub Actions.
 
 ---
 
@@ -383,7 +355,7 @@ Optional later: Pest 5 + PHP `^8.4`, drop Laravel 12, ACP transport, driver auto
 
 ## README / config changes that land with 2.0
 
-- Requirements: PHP 8.3+, Laravel 12 or 13, `laravel/ai` 0.10.x, six optional binaries.
+- Requirements: PHP 8.4+, Laravel 13, `laravel/ai` 0.10.x, six optional binaries.
 - Provider IDs: add `cursor-cli`, `grok-cli`.
 - Security paragraph: Cursor `--force` and Grok `--always-approve` join Codex `--full-auto` and Amp `--dangerously-allow-all`. Published config defaults to **not** passing those flags.
 - Default models live in `config/conduit.php` only, with a comment that aliases (`sonnet`, `grok-4.6`, `gpt-5.3-codex`) track vendor CLIs and will move.

@@ -251,7 +251,7 @@ try {
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the planned 2.0 work: Laravel 13 + `laravel/ai` 0.10, PHPStan 10, and Cursor / Grok drivers.
+See [ROADMAP.md](ROADMAP.md) for the 2.0 plan and [ISSUES.md](ISSUES.md) for the six sequential PRs (`laravel/ai` 0.10 + Pest 5, DriverOptions, PHPStan 9/10, CLI parity, Cursor/Grok, streaming).
 
 ## Contributing
 

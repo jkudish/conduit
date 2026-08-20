@@ -15,7 +15,7 @@ composer install
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feat/my-feature`)
 3. Make your changes
-4. Run the checks:
+4. Run the checks **locally** (GitHub Actions may be red / out of credits — ignore it):
    ```bash
    composer test          # Run tests
    composer phpstan       # Static analysis
@@ -39,7 +39,7 @@ composer test    # Run the full test suite
 
 ## Static Analysis
 
-PHPStan level 8 must pass:
+PHPStan level 8 must pass (`phpstan.neon.dist`). Raising to 9 then 10 is tracked in [ISSUES.md](ISSUES.md); do not bump the level in an unrelated PR.
 
 ```bash
 composer phpstan

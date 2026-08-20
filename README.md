@@ -249,6 +249,10 @@ try {
 - Laravel AI SDK (`laravel/ai`) v0.5.1+
 - At least one supported CLI agent installed locally
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the 2.0 plan and [ISSUES.md](ISSUES.md) for the six sequential PRs (`laravel/ai` 0.10 + Pest 5, DriverOptions, PHPStan 9/10, CLI parity, Cursor/Grok, streaming).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Run `composer test`, `composer phpstan`, and `composer lint` before submitting.

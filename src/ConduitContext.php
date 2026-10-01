@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Context;
  * Request-scoped context for passing CLI-specific options to the Conduit gateway.
  *
  * ProcessAgentMessage sets this before calling agent()->prompt(), and the
- * ConduitGateway reads it during generateText(). Uses Laravel's Context
+ * ConduitGateway reads it during generateTextStep(). Uses Laravel's Context
  * facade under the hood for proper request/job scoping.
  */
 class ConduitContext

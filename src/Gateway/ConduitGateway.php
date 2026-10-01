@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Conduit\Gateway;
 
-use Closure;
 use Conduit\ConduitContext;
 use Conduit\Contracts\CliDriver;
 use Conduit\Responses\ConduitMeta;
@@ -18,21 +17,19 @@ use Laravel\Ai\Contracts\Providers\ImageProvider;
 use Laravel\Ai\Contracts\Providers\TextProvider;
 use Laravel\Ai\Contracts\Providers\TranscriptionProvider;
 use Laravel\Ai\Files\Image as ImageFile;
+use Laravel\Ai\Gateway\StepContext;
+use Laravel\Ai\Gateway\StepResponse;
 use Laravel\Ai\Gateway\TextGenerationOptions;
 use Laravel\Ai\Messages\UserMessage;
 use Laravel\Ai\Responses\AudioResponse;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\FinishReason;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\EmbeddingsResponse;
 use Laravel\Ai\Responses\ImageResponse;
-use Laravel\Ai\Responses\TextResponse;
 use Laravel\Ai\Responses\TranscriptionResponse;
 
 class ConduitGateway implements Gateway
 {
-    protected ?Closure $onInvoking = null;
-
-    protected ?Closure $onInvoked = null;
-
     public function __construct(
         protected CliDriver $driver,
     ) {}
@@ -43,16 +40,17 @@ class ConduitGateway implements Gateway
      * Reads additional options (session_id, cli_tools, etc.) from ConduitContext.
      * The CLI handles its own tool execution -- SDK $tools parameter is ignored.
      */
-    public function generateText(
+    public function generateTextStep(
         TextProvider $provider,
         string $model,
         ?string $instructions,
-        array $messages = [],
-        array $tools = [],
-        ?array $schema = null,
-        ?TextGenerationOptions $options = null,
-        ?int $timeout = null,
-    ): TextResponse {
+        array $messages,
+        array $tools,
+        ?array $schema,
+        ?TextGenerationOptions $options,
+        ?int $timeout,
+        StepContext $stepContext,
+    ): StepResponse {
         if ($tools !== [] || $schema !== null) {
             Log::warning('ConduitGateway: AI SDK tools and structured output schemas are not supported by CLI providers — these parameters are ignored.');
         }
@@ -78,11 +76,13 @@ class ConduitGateway implements Gateway
 
         $result = $this->driver->execute($prompt, $driverOptions);
 
-        return new TextResponse(
+        return new StepResponse(
             $result->result,
-            new Usage(
-                promptTokens: $result->inputTokens,
-                completionTokens: $result->outputTokens,
+            [],
+            FinishReason::Stop,
+            new TextUsage(
+                inputTokens: $result->inputTokens,
+                outputTokens: $result->outputTokens,
             ),
             new ConduitMeta(
                 provider: $this->driver->name().'-cli',
@@ -103,18 +103,19 @@ class ConduitGateway implements Gateway
      *
      * @throws \RuntimeException
      */
-    public function streamText(
+    public function generateStreamStep(
         string $invocationId,
         TextProvider $provider,
         string $model,
         ?string $instructions,
-        array $messages = [],
-        array $tools = [],
-        ?array $schema = null,
-        ?TextGenerationOptions $options = null,
-        ?int $timeout = null,
+        array $messages,
+        array $tools,
+        ?array $schema,
+        ?TextGenerationOptions $options,
+        ?int $timeout,
+        StepContext $stepContext,
     ): Generator {
-        throw new \RuntimeException('Streaming is not supported for CLI providers. Use generateText() instead.');
+        throw new \RuntimeException('Streaming is not supported for CLI providers. Use prompt() instead.');
     }
 
     /**
@@ -128,6 +129,8 @@ class ConduitGateway implements Gateway
         string $text,
         string $voice,
         ?string $instructions = null,
+        int $timeout = 30,
+        array $providerOptions = [],
     ): AudioResponse {
         throw new \RuntimeException('Audio generation is not supported for CLI providers.');
     }
@@ -139,7 +142,7 @@ class ConduitGateway implements Gateway
      *
      * @throws \RuntimeException
      */
-    public function generateEmbeddings(EmbeddingProvider $provider, string $model, array $inputs, int $dimensions, int $timeout = 30): EmbeddingsResponse
+    public function generateEmbeddings(EmbeddingProvider $provider, string $model, array $inputs, int $dimensions, int $timeout = 30, array $providerOptions = []): EmbeddingsResponse
     {
         throw new \RuntimeException('Embedding generation is not supported for CLI providers.');
     }
@@ -161,6 +164,7 @@ class ConduitGateway implements Gateway
         ?string $size = null,
         ?string $quality = null,
         ?int $timeout = null,
+        array $providerOptions = [],
     ): ImageResponse {
         throw new \RuntimeException('Image generation is not supported for CLI providers.');
     }
@@ -177,18 +181,9 @@ class ConduitGateway implements Gateway
         ?string $language = null,
         bool $diarize = false,
         int $timeout = 30,
+        array $providerOptions = [],
     ): TranscriptionResponse {
         throw new \RuntimeException('Transcription is not supported for CLI providers.');
-    }
-
-    public function onToolInvocation(Closure $invoking, Closure $invoked): self
-    {
-        // Stored for interface compliance only. CLI drivers manage tool execution
-        // internally via subprocess — these callbacks are not invoked during generateText().
-        $this->onInvoking = $invoking;
-        $this->onInvoked = $invoked;
-
-        return $this;
     }
 
     /**

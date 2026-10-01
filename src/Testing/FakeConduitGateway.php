@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Conduit\Testing;
 
-use Closure;
 use Conduit\Responses\ConduitMeta;
 use Generator;
 use Laravel\Ai\Contracts\Files\TranscribableAudio;
@@ -15,9 +14,12 @@ use Laravel\Ai\Contracts\Providers\ImageProvider;
 use Laravel\Ai\Contracts\Providers\TextProvider;
 use Laravel\Ai\Contracts\Providers\TranscriptionProvider;
 use Laravel\Ai\Files\Image as ImageFile;
+use Laravel\Ai\Gateway\StepContext;
+use Laravel\Ai\Gateway\StepResponse;
 use Laravel\Ai\Gateway\TextGenerationOptions;
 use Laravel\Ai\Responses\AudioResponse;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\FinishReason;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\EmbeddingsResponse;
 use Laravel\Ai\Responses\ImageResponse;
 use Laravel\Ai\Responses\TextResponse;
@@ -35,7 +37,7 @@ class FakeConduitGateway implements Gateway
     protected int $callCount = 0;
 
     /**
-     * Queue a response to be returned by the next generateText() call.
+     * Queue a response to be returned by the next generateTextStep() call.
      */
     public function queueResponse(TextResponse $response): self
     {
@@ -51,7 +53,7 @@ class FakeConduitGateway implements Gateway
     {
         return $this->queueResponse(new TextResponse(
             $text,
-            new Usage,
+            new TextUsage,
             new ConduitMeta(
                 provider: 'fake-cli',
                 model: 'fake-model',
@@ -60,16 +62,17 @@ class FakeConduitGateway implements Gateway
         ));
     }
 
-    public function generateText(
+    public function generateTextStep(
         TextProvider $provider,
         string $model,
         ?string $instructions,
-        array $messages = [],
-        array $tools = [],
-        ?array $schema = null,
-        ?TextGenerationOptions $options = null,
-        ?int $timeout = null,
-    ): TextResponse {
+        array $messages,
+        array $tools,
+        ?array $schema,
+        ?TextGenerationOptions $options,
+        ?int $timeout,
+        StepContext $stepContext,
+    ): StepResponse {
         $this->callCount++;
         $this->recorded[] = [
             'model' => $model,
@@ -79,12 +82,16 @@ class FakeConduitGateway implements Gateway
         ];
 
         if ($this->responseQueue !== []) {
-            return array_shift($this->responseQueue);
+            $response = array_shift($this->responseQueue);
+
+            return new StepResponse($response->text, [], FinishReason::Stop, $response->usage, $response->meta);
         }
 
-        return new TextResponse(
+        return new StepResponse(
             'Fake CLI response #'.$this->callCount,
-            new Usage,
+            [],
+            FinishReason::Stop,
+            new TextUsage,
             new ConduitMeta(
                 provider: 'fake-cli',
                 model: $model,
@@ -96,16 +103,17 @@ class FakeConduitGateway implements Gateway
     /**
      * @throws \RuntimeException
      */
-    public function streamText(
+    public function generateStreamStep(
         string $invocationId,
         TextProvider $provider,
         string $model,
         ?string $instructions,
-        array $messages = [],
-        array $tools = [],
-        ?array $schema = null,
-        ?TextGenerationOptions $options = null,
-        ?int $timeout = null,
+        array $messages,
+        array $tools,
+        ?array $schema,
+        ?TextGenerationOptions $options,
+        ?int $timeout,
+        StepContext $stepContext,
     ): Generator {
         throw new \RuntimeException('Streaming is not supported in the fake gateway.');
     }
@@ -119,6 +127,8 @@ class FakeConduitGateway implements Gateway
         string $text,
         string $voice,
         ?string $instructions = null,
+        int $timeout = 30,
+        array $providerOptions = [],
     ): AudioResponse {
         throw new \RuntimeException('Audio generation is not supported for CLI providers.');
     }
@@ -128,7 +138,7 @@ class FakeConduitGateway implements Gateway
      *
      * @throws \RuntimeException
      */
-    public function generateEmbeddings(EmbeddingProvider $provider, string $model, array $inputs, int $dimensions, int $timeout = 30): EmbeddingsResponse
+    public function generateEmbeddings(EmbeddingProvider $provider, string $model, array $inputs, int $dimensions, int $timeout = 30, array $providerOptions = []): EmbeddingsResponse
     {
         throw new \RuntimeException('Embedding generation is not supported for CLI providers.');
     }
@@ -146,6 +156,7 @@ class FakeConduitGateway implements Gateway
         ?string $size = null,
         ?string $quality = null,
         ?int $timeout = null,
+        array $providerOptions = [],
     ): ImageResponse {
         throw new \RuntimeException('Image generation is not supported for CLI providers.');
     }
@@ -160,17 +171,13 @@ class FakeConduitGateway implements Gateway
         ?string $language = null,
         bool $diarize = false,
         int $timeout = 30,
+        array $providerOptions = [],
     ): TranscriptionResponse {
         throw new \RuntimeException('Transcription is not supported for CLI providers.');
     }
 
-    public function onToolInvocation(Closure $invoking, Closure $invoked): self
-    {
-        return $this;
-    }
-
     /**
-     * Assert generateText() was called a specific number of times, or at least once.
+     * Assert generateTextStep() was called a specific number of times, or at least once.
      */
     public function assertCalled(?int $times = null): self
     {
@@ -178,12 +185,12 @@ class FakeConduitGateway implements Gateway
             Assert::assertCount(
                 $times,
                 $this->recorded,
-                "Expected generateText() to be called [{$times}] times, but was called [".count($this->recorded).'] times.',
+                "Expected generateTextStep() to be called [{$times}] times, but was called [".count($this->recorded).'] times.',
             );
         } else {
             Assert::assertNotEmpty(
                 $this->recorded,
-                'Expected generateText() to be called at least once.',
+                'Expected generateTextStep() to be called at least once.',
             );
         }
 
@@ -191,7 +198,7 @@ class FakeConduitGateway implements Gateway
     }
 
     /**
-     * Assert generateText() was never called.
+     * Assert generateTextStep() was never called.
      */
     public function assertNotCalled(): self
     {
@@ -199,7 +206,7 @@ class FakeConduitGateway implements Gateway
     }
 
     /**
-     * Assert generateText() was called with instructions containing the given string.
+     * Assert generateTextStep() was called with instructions containing the given string.
      */
     public function assertInstructionsContain(string $substring): self
     {
@@ -210,14 +217,14 @@ class FakeConduitGateway implements Gateway
 
         Assert::assertTrue(
             $found->isNotEmpty(),
-            "Expected generateText() to be called with instructions containing [{$substring}].",
+            "Expected generateTextStep() to be called with instructions containing [{$substring}].",
         );
 
         return $this;
     }
 
     /**
-     * Assert generateText() was called with a specific model.
+     * Assert generateTextStep() was called with a specific model.
      */
     public function assertModelUsed(string $model): self
     {
@@ -227,14 +234,14 @@ class FakeConduitGateway implements Gateway
 
         Assert::assertTrue(
             $found->isNotEmpty(),
-            "Expected generateText() to be called with model [{$model}].",
+            "Expected generateTextStep() to be called with model [{$model}].",
         );
 
         return $this;
     }
 
     /**
-     * Get all recorded generateText() calls.
+     * Get all recorded generateTextStep() calls.
      *
      * @return list<array{model: string, instructions: ?string, messages: array<int, mixed>, options: ?TextGenerationOptions}>
      */

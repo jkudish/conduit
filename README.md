@@ -26,12 +26,14 @@ The CLI binaries (`claude`, `codex`, `amp`, `pi`) must be installed and availabl
 ## Quick Start
 
 ```php
-use Laravel\Ai\Facades\Ai;
+use function Laravel\Ai\agent;
 
 // Generate text using Claude Code
-$response = Ai::provider('claude-cli')
-    ->model('claude-sonnet-4-5')
-    ->generateText('Refactor the UserController to use form requests');
+$response = agent()->prompt(
+    'Refactor the UserController to use form requests',
+    provider: 'claude-cli',
+    model: 'claude-sonnet-4-5',
+);
 
 echo $response->text;
 
@@ -94,6 +96,17 @@ return [
 ];
 ```
 
+Also register the providers you use in your application's `config/ai.php`:
+
+```php
+'providers' => [
+    'claude-cli' => ['driver' => 'claude-cli'],
+    'codex-cli' => ['driver' => 'codex-cli'],
+    'amp-cli' => ['driver' => 'amp-cli'],
+    'pi-cli' => ['driver' => 'pi-cli'],
+],
+```
+
 ## Key Features
 
 ### Session Resume
@@ -107,8 +120,7 @@ ConduitContext::set(
     sessionId: $previousResponse->meta->sessionId,
 );
 
-$response = Ai::provider('claude-cli')
-    ->generateText('Now add tests for the changes you made');
+$response = agent()->prompt('Now add tests for the changes you made', provider: 'claude-cli');
 ```
 
 ### Tool Allowlists
@@ -120,8 +132,7 @@ ConduitContext::set(
     cliTools: ['Bash', 'Read', 'Write', 'Edit'],
 );
 
-$response = Ai::provider('claude-cli')
-    ->generateText('Fix the failing test');
+$response = agent()->prompt('Fix the failing test', provider: 'claude-cli');
 ```
 
 ### MCP Config
@@ -166,7 +177,9 @@ $meta->sessionId;         // 'abc-123-def'
 $meta->isError;           // false
 ```
 
-> **Cost tracking note:** Codex CLI does not report monetary cost in its output. `costUsd` returns `0.00` for Codex requests. Token counts (`promptTokens`, `completionTokens`) are fully supported — you can compute cost externally by multiplying token counts by the model's per-token pricing.
+SDK usage is available as `$response->usage->inputTokens` and `$response->usage->outputTokens`, serialized as `input_tokens` and `output_tokens`. Input totals include cache reads and writes. Conduit's metadata retains the `promptTokens` / `completionTokens` names and `prompt_tokens` / `completion_tokens` keys, but now reports the same inclusive totals. Cache and reasoning breakdowns are not exposed by Conduit; the SDK's optional breakdown fields remain `null`.
+
+> **Cost tracking note:** Codex CLI does not report monetary cost in its output. `costUsd` returns `0.00` for Codex requests. Inclusive token totals alone are insufficient for exact cost calculations when cached or reasoning tokens have different rates; obtain the category breakdown from the CLI/provider if needed.
 
 ### Working Directory
 
@@ -190,7 +203,7 @@ Conduit builds a clean environment for each subprocess — only forwarding essen
 use Conduit\Gateway\ConduitGateway;
 use Conduit\Testing\FakeConduitGateway;
 use Conduit\Responses\ConduitMeta;
-use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\TextResponse;
 
 it('calls the CLI gateway', function () {
@@ -209,7 +222,7 @@ it('queues multiple responses', function () {
     $fake->queueText('Step 1 done');
     $fake->queueText('Step 2 done');
 
-    // Each generateText() call shifts the next response
+    // Each generateTextStep() call shifts the next response
 });
 ```
 
@@ -232,7 +245,7 @@ All exceptions extend `ConduitException` which carries `$command`, `$output`, an
 use Conduit\Exceptions\CliCommandException;
 
 try {
-    $response = Ai::provider('claude-cli')->generateText('...');
+    $response = agent()->prompt('...', provider: 'claude-cli');
 } catch (CliCommandException $e) {
     Log::error('CLI failed', [
         'command' => $e->command,
@@ -245,9 +258,17 @@ try {
 ## Requirements
 
 - PHP 8.3+
-- Laravel 12
-- Laravel AI SDK (`laravel/ai`) v0.5.1+
+- Laravel 12.62+
+- Laravel AI SDK (`laravel/ai`) v1.0.1+
 - At least one supported CLI agent installed locally
+
+### Upgrading From AI SDK 0.5
+
+Follow every crossed section of the [Laravel AI upgrade guide](https://github.com/laravel/ai/blob/v1.0.1/UPGRADE.md) (0.8 → 0.9 → 0.10 → 0.11 → 1.0). Direct gateway callers must use `generateTextStep()` with a `StepContext`, or `$provider->textGenerationLoop()->generate()` for a complete response; tool invocation callbacks now belong to the loop. Streaming and SDK-managed tools / structured output remain unsupported by Conduit.
+
+Conduit has no conversation tables or migrations. Applications that use SDK remembered conversations must apply the guide's participant, approval, and steps/status migrations before deploying AI 1.0, and resolve pending approvals first. Update consumers of SDK usage properties and stored usage keys; historical rows retain the old names.
+
+`laravel/mcp` is not required by Conduit, and CLI MCP configuration does not use Laravel MCP. If your application installs it separately, Conduit requires v1.0.1 or later; follow the [MCP 1.0 upgrade guide](https://github.com/laravel/mcp/blob/v1.0.1/UPGRADE.md) for protocol, HTTP header, session, and OAuth changes.
 
 ## Contributing
 

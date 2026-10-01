@@ -31,6 +31,21 @@ it('parses claude cli json result event', function (): void {
         ->and($result->model)->toBe('claude-sonnet-4-5');
 });
 
+it('includes cache reads and writes in Claude and Amp input totals', function (): void {
+    $usage = ['input_tokens' => 7, 'output_tokens' => 11, 'cache_read_input_tokens' => 13, 'cache_creation_input_tokens' => 17];
+    $claude = CliRunResult::fromClaudeJson(json_encode(['type' => 'result', 'result' => 'Done', 'usage' => $usage]));
+    $amp = CliRunResult::fromAmpJson(implode("\n", [
+        json_encode(['type' => 'assistant', 'message' => ['usage' => $usage]]),
+        json_encode(['type' => 'assistant', 'message' => ['usage' => ['input_tokens' => 3, 'output_tokens' => 5, 'cache_read_input_tokens' => 2]]]),
+        json_encode(['type' => 'result', 'result' => 'Done']),
+    ]));
+
+    expect($claude->inputTokens)->toBe(37)
+        ->and($claude->outputTokens)->toBe(11)
+        ->and($amp->inputTokens)->toBe(42)
+        ->and($amp->outputTokens)->toBe(16);
+});
+
 it('parses claude cli json array format', function (): void {
     $json = json_encode([
         ['type' => 'system', 'subtype' => 'init', 'session_id' => 'session-xyz'],
@@ -78,7 +93,7 @@ it('parses codex jsonl output', function (): void {
         '{"type":"turn.started"}',
         '{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"thinking"}}',
         '{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Hello from Codex!"}}',
-        '{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":0,"output_tokens":42}}',
+        '{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":300,"output_tokens":42}}',
     ]);
 
     $result = CliRunResult::fromCodexJson($json, ['model' => 'gpt-5.3-codex']);
@@ -103,7 +118,7 @@ it('parses amp jsonl output', function (): void {
 
     expect($result->sessionId)->toBe('T-session-amp-1')
         ->and($result->result)->toBe('Hi from Amp!')
-        ->and($result->inputTokens)->toBe(500)
+        ->and($result->inputTokens)->toBe(1500)
         ->and($result->outputTokens)->toBe(30)
         ->and($result->durationMs)->toBe(2000)
         ->and($result->numTurns)->toBe(1)

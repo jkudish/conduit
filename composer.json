@@ -37,9 +37,6 @@
         "laravel/ai": "^1.0.1",
         "symfony/process": "^7.0"
     },
-    "conflict": {
-        "laravel/mcp": "<1.0.1"
-    },
     "require-dev": {
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.0",

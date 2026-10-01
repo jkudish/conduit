@@ -268,7 +268,7 @@ Follow every crossed section of the [Laravel AI upgrade guide](https://github.co
 
 Conduit has no conversation tables or migrations. Applications that use SDK remembered conversations must apply the guide's participant, approval, and steps/status migrations before deploying AI 1.0, and resolve pending approvals first. Update consumers of SDK usage properties and stored usage keys; historical rows retain the old names.
 
-`laravel/mcp` is not required by Conduit, and CLI MCP configuration does not use Laravel MCP. If your application installs it separately, Conduit requires v1.0.1 or later; follow the [MCP 1.0 upgrade guide](https://github.com/laravel/mcp/blob/v1.0.1/UPGRADE.md) for protocol, HTTP header, session, and OAuth changes.
+Laravel MCP is not applicable to this upgrade: `laravel/mcp` is neither a direct nor transitive dependency of Conduit, and CLI MCP configuration does not use Laravel MCP. Conduit adds no Laravel MCP dependency constraint.
 
 ## Contributing
 

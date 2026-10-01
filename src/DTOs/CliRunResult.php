@@ -44,9 +44,11 @@ final readonly class CliRunResult
 
         $resultEvent = self::findResultEvent($decoded, $json);
 
-        /** @var array{input_tokens?: int, output_tokens?: int}|null $usage */
+        /** @var array{input_tokens?: int, output_tokens?: int, cache_creation_input_tokens?: int, cache_read_input_tokens?: int}|null $usage */
         $usage = $resultEvent['usage'] ?? null;
         $inputTokens = (int) ($usage['input_tokens'] ?? 0);
+        $inputTokens += (int) ($usage['cache_creation_input_tokens'] ?? 0);
+        $inputTokens += (int) ($usage['cache_read_input_tokens'] ?? 0);
         $outputTokens = (int) ($usage['output_tokens'] ?? 0);
 
         $model = (string) ($overrides['model'] ?? '');
@@ -175,6 +177,8 @@ final readonly class CliRunResult
                 /** @var array{input_tokens?: int, output_tokens?: int, cache_creation_input_tokens?: int, cache_read_input_tokens?: int} $usage */
                 $usage = $event['message']['usage'];
                 $inputTokens += (int) ($usage['input_tokens'] ?? 0);
+                $inputTokens += (int) ($usage['cache_creation_input_tokens'] ?? 0);
+                $inputTokens += (int) ($usage['cache_read_input_tokens'] ?? 0);
                 $outputTokens += (int) ($usage['output_tokens'] ?? 0);
             }
         }
